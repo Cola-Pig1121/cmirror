@@ -1,0 +1,170 @@
+/* cmirror — Listary 风:纯白背景 + 居中圆角长搜索框 */
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: #fff;
+  color: #1f2328;
+  font-family: "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.home {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.box-wrap { width: min(680px, 92vw); position: relative; }
+
+.searchbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 58px;
+  padding: 0 10px 0 20px;
+  border: 1px solid #e3e6ea;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 6px 24px rgba(31, 35, 40, 0.06);
+  transition: border-color .15s, box-shadow .15s;
+}
+.searchbox:focus-within {
+  border-color: #b9c2cc;
+  box-shadow: 0 10px 32px rgba(31, 35, 40, 0.12);
+}
+.searchbox input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  font-size: 19px;
+  background: transparent;
+  color: inherit;
+}
+.searchbox input::placeholder { color: #9aa2ab; }
+
+.engine {
+  flex: none;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  background: #fafbfc;
+  color: #57606a;
+  font-size: 13px;
+  cursor: pointer;
+}
+.engine:hover { background: #f0f2f4; }
+
+/* GitHub 镜像操作条 */
+.ghbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.ghbar button {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid #e3e6ea;
+  border-radius: 999px;
+  background: #fafbfc;
+  color: #24292f;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.ghbar button:hover { background: #f0f2f4; border-color: #d0d7de; }
+.ghbar button.primary { background: #24292f; color: #fff; border-color: #24292f; }
+.ghbar button.primary:hover { background: #3a4149; }
+.ghbar .note { align-self: center; color: #9aa2ab; font-size: 12.5px; }
+.ghbar .seg { display: flex; border: 1px solid #e3e6ea; border-radius: 999px; overflow: hidden; height: 34px; }
+.ghbar .seg button { border: 0; border-radius: 0; background: #fafbfc; }
+.ghbar .seg button + button { border-left: 1px solid #e3e6ea; }
+.ghbar .seg button.on { background: #24292f; color: #fff; }
+
+/* / 命令补全列表 */
+.list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 8px);
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid #e3e6ea;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(31, 35, 40, 0.14);
+  max-height: 340px;
+  overflow: auto;
+  z-index: 10;
+}
+.list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 15px;
+}
+.list li .cmd { font-weight: 600; white-space: nowrap; }
+.list li .args { color: #9aa2ab; font-size: 13px; white-space: nowrap; }
+.list li .desc { color: #57606a; font-size: 13px; margin-left: auto; text-align: right; }
+.list li.sel, .list li:hover { background: #f2f5f8; }
+
+/* 设置页 */
+.settings {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 48px 20px 80px;
+}
+.settings h1 { font-size: 22px; font-weight: 650; }
+.settings section { margin: 26px 0; }
+.settings label { display: block; font-size: 14px; color: #57606a; margin-bottom: 8px; }
+.settings input[type="text"], .settings input[type="password"], .settings select {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  font-size: 15px;
+  background: #fff;
+  color: inherit;
+}
+.settings .row { display: flex; gap: 8px; }
+.settings .row input { flex: 1; }
+.settings .row select { width: 130px; }
+.settings .row button {
+  flex: none;
+  padding: 0 16px;
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  background: #fafbfc;
+  font-size: 14px;
+  cursor: pointer;
+}
+.settings .row button:hover { background: #f0f2f4; }
+.hint { font-size: 12px; color: #9aa2ab; margin: 6px 0 0; }
+.custom-list { list-style: none; padding: 0; margin: 10px 0 0; }
+.custom-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid #eef0f2;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.custom-list li .mode { color: #9aa2ab; font-size: 12px; }
+.custom-list li button {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: #cf222e;
+  cursor: pointer;
+  font-size: 13px;
+}
+.back { color: #57606a; font-size: 14px; text-decoration: none; }
+.back:hover { text-decoration: underline; }

@@ -1,0 +1,20 @@
+name = "cmirror"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "0921a095a9e14927b1ba5f0088045179"
+
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "cmirror_requests"
+
+# Smart Placement 需付费版;升级后取消注释(见 docs/plan.md 风险一节)
+# [placement]
+# mode = "smart"

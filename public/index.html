@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>cmirror</title>
+<link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <main id="home" class="home">
+    <div class="box-wrap">
+      <div class="searchbox">
+        <input id="q" type="text" autocomplete="off" spellcheck="false"
+               placeholder="搜索或输入网址,按 / 使用命令" />
+        <button id="engine" class="engine" type="button" title="切换搜索引擎"></button>
+      </div>
+      <div id="ghbar" class="ghbar" hidden></div>
+      <ul id="list" class="list" hidden></ul>
+    </div>
+  </main>
+
+  <main id="settings" class="settings" hidden>
+    <h1>设置</h1>
+    <section>
+      <label for="token">访问令牌(Authorization Bearer 值)</label>
+      <input id="token" type="password" placeholder="粘贴你的 cmirror 令牌" />
+      <p class="hint" id="tokenState"></p>
+    </section>
+    <section>
+      <label for="engineSel">默认搜索引擎</label>
+      <select id="engineSel"></select>
+    </section>
+    <section>
+      <label>自定义代理(长期规则,需管理员令牌)</label>
+      <div class="row">
+        <input id="customHost" type="text" placeholder="如 www.pixiv.net" />
+        <select id="customMode"><option value="rewrite">rewrite</option><option value="stream">stream</option></select>
+        <button id="customAdd" type="button">添加</button>
+      </div>
+      <ul id="customList" class="custom-list"></ul>
+      <p class="hint" id="customHint"></p>
+    </section>
+    <section>
+      <a href="/" class="back">← 返回搜索</a>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
