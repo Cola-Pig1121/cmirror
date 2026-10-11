@@ -31,7 +31,7 @@
       <select id="engineSel"></select>
     </section>
     <section>
-      <a href="/admin" class="back">进入管理后台(令牌 / 渠道 / 别名 / 镜像规则)→</a>
+      <a href="/admin" class="back" id="adminLink" hidden>进入管理后台(令牌 / 渠道 / 别名 / 镜像规则)→</a>
     </section>
     <section>
       <a href="/" class="back">← 返回搜索</a>
@@ -49,6 +49,11 @@
       <button data-tab="channels">AI 渠道</button>
       <button data-tab="aliases">模型别名</button>
       <button data-tab="rules">镜像规则</button>
+    </div>
+
+    <div id="adminDenied" class="denied" hidden>
+      <p id="adminDeniedMsg">当前令牌没有管理员权限,无法进入后台。</p>
+      <a href="/settings" class="back">前往设置更换令牌 →</a>
     </div>
 
     <section id="tab-tokens" class="tab">
@@ -71,7 +76,12 @@
     <section id="tab-channels" class="tab" hidden>
       <div class="form-grid">
         <input id="chId" placeholder="渠道 id(如 deepseek-1)" />
-        <input id="chProvider" placeholder="provider(openai/anthropic/gemini/deepseek/…)" />
+        <select id="chProvider" title="API 格式">
+          <option value="openai">Chat Completions (/chat/completions)</option>
+          <option value="anthropic">Anthropic Messages (/v1/messages)</option>
+          <option value="gemini">Gemini (generateContent)</option>
+          <option value="responses">Responses (/responses)</option>
+        </select>
         <input id="chBase" placeholder="baseUrl,如 https://api.deepseek.com" />
         <textarea id="chKeys" rows="3" placeholder="上游 API key,每行一个(仅存服务端,不回显)"></textarea>
         <input id="chModels" placeholder="模型,逗号分隔(* = 全部)" />

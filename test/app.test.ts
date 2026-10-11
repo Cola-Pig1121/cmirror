@@ -417,13 +417,61 @@ describe('M4: AI gateway mode A (passthrough)', () => {
     expect(body.error.type).toBe('invalid_request_error')
     expect(body.error.code).toBe('provider_not_found')
   })
+
+  it('passthrough URL segment matches channel id first, then format', async () => {
+    const { env } = makeEnv()
+    const { ctx } = makeCtx()
+    await seedChannel(env.KV as never, { id: 'ds-prod', format: 'openai', baseUrl: 'https://api.deepseek.com', keys: ['up-k1'], models: ['deepseek-chat'], weight: 1, enabled: true })
+    const seen: string[] = []
+    vi.stubGlobal('fetch', async (url: RequestInfo | URL) => {
+      seen.push(String(url))
+      return new Response(JSON.stringify({ id: 'x', choices: [] }), { headers: { 'content-type': 'application/json' } })
+    })
+    // 按渠道 id
+    const byId = await call(new Request('https://cm.test/ai/ds-prod/v1/chat/completions', { method: 'POST', headers: adminHeaders({ 'content-type': 'application/json' }), body: '{"model":"deepseek-chat","messages":[]}' }), env, ctx)
+    expect(byId.status).toBe(200)
+    expect(seen[0]).toBe('https://api.deepseek.com/v1/chat/completions')
+    // 按格式(openai 也能匹配到该渠道)
+    const byFmt = await call(new Request('https://cm.test/ai/openai/v1/chat/completions', { method: 'POST', headers: adminHeaders({ 'content-type': 'application/json' }), body: '{"model":"deepseek-chat","messages":[]}' }), env, ctx)
+    expect(byFmt.status).toBe(200)
+    expect(seen[1]).toBe('https://api.deepseek.com/v1/chat/completions')
+  })
+})
+
+describe('whoami & formats', () => {
+  it('whoami reports auth state and admin flag', async () => {
+    const { env } = makeEnv()
+    const { ctx } = makeCtx()
+    const anon = await call(new Request('https://cm.test/api/whoami'), env, ctx)
+    expect(anon.status).toBe(200)
+    expect(await anon.json()).toEqual({ authed: false })
+
+    const adminRes = await call(new Request('https://cm.test/api/whoami', { headers: adminHeaders() }), env, ctx)
+    expect(((await adminRes.json()) as { admin: boolean }).admin).toBe(true)
+
+    const raw = 'user-token-1'
+    await (env.KV as unknown as { put: (k: string, v: string) => Promise<void> }).put('token:' + (await sha256hex(raw)), JSON.stringify({ id: 'u', name: 'u', scopes: ['mirror'], createdAt: 0 }))
+    const userRes = await call(new Request('https://cm.test/api/whoami', { headers: { authorization: `Bearer ${raw}` } }), env, ctx)
+    const uj = (await userRes.json()) as { authed: boolean; admin: boolean; scopes: string[] }
+    expect(uj.authed).toBe(true)
+    expect(uj.admin).toBe(false)
+  })
+
+  it('GET /api/formats lists API formats', async () => {
+    const { env } = makeEnv()
+    const { ctx } = makeCtx()
+    const res = await call(new Request('https://cm.test/api/formats'), env, ctx)
+    const list = (await res.json()) as { key: string; label: string }[]
+    expect(list.map((f) => f.key)).toEqual(['openai', 'anthropic', 'gemini', 'responses'])
+    expect(list[1]!.label).toContain('/v1/messages')
+  })
 })
 
 describe('M5: AI gateway mode B (openai unified)', () => {
   async function setup() {
     const { env, datapoints } = makeEnv()
     const { ctx, promises } = makeCtx()
-    await seedChannel(env.KV as never, { id: 'a1', provider: 'anthropic', baseUrl: 'https://api.anthropic.com', keys: ['ant-1'], models: ['claude-test'], weight: 1, enabled: true })
+    await seedChannel(env.KV as never, { id: 'a1', format: 'anthropic', baseUrl: 'https://api.anthropic.com', keys: ['ant-1'], models: ['claude-test'], weight: 1, enabled: true })
     const raw = 'ai-token-1'
     const hash = await sha256hex(raw)
     await (env.KV as unknown as { put: (k: string, v: string) => Promise<void> }).put('token:' + hash, JSON.stringify({ id: 'u1', name: 'u1', scopes: ['ai'], createdAt: 0 }))
@@ -523,7 +571,7 @@ describe('M5: AI gateway mode B (openai unified)', () => {
   it('embeddings via openai-compatible channel', async () => {
     const { env } = makeEnv()
     const { ctx } = makeCtx()
-    await seedChannel(env.KV as never, { id: 'o1', provider: 'deepseek', baseUrl: 'https://api.deepseek.com', keys: ['dk'], models: ['embed-x'], weight: 1, enabled: true })
+    await seedChannel(env.KV as never, { id: 'o1', format: 'openai', baseUrl: 'https://api.deepseek.com', keys: ['dk'], models: ['embed-x'], weight: 1, enabled: true })
     vi.stubGlobal('fetch', async (url: RequestInfo | URL) => {
       expect(String(url)).toBe('https://api.deepseek.com/v1/embeddings')
       return new Response(JSON.stringify({ object: 'list', data: [{ index: 0, object: 'embedding', embedding: [0.1, 0.2] }] }), { headers: { 'content-type': 'application/json' } })
@@ -556,7 +604,7 @@ describe('M1: admin', () => {
   it('channels CRUD', async () => {
     const { env } = makeEnv()
     const { ctx } = makeCtx()
-    const ch = { provider: 'openai', baseUrl: 'https://api.openai.com', keys: ['sk-1'], models: ['gpt-4o'], weight: 5, enabled: true }
+    const ch = { format: 'openai', baseUrl: 'https://api.openai.com', keys: ['up-1'], models: ['gpt-4o'], weight: 5, enabled: true }
     const put = await call(new Request('https://cm.test/admin/channels/prod', { method: 'PUT', headers: adminHeaders({ 'content-type': 'application/json' }), body: JSON.stringify(ch) }), env, ctx)
     expect(put.status).toBe(200)
     const list = await call(new Request('https://cm.test/admin/channels', { headers: adminHeaders() }), env, ctx)
@@ -571,7 +619,7 @@ describe('M1: admin', () => {
   it('rejects unsafe channel & rules', async () => {
     const { env } = makeEnv()
     const { ctx } = makeCtx()
-    const badCh = await call(new Request('https://cm.test/admin/channels/x', { method: 'PUT', headers: adminHeaders({ 'content-type': 'application/json' }), body: JSON.stringify({ provider: 'openai', baseUrl: 'https://api.openai.com', models: [], enabled: true }) }), env, ctx)
+    const badCh = await call(new Request('https://cm.test/admin/channels/x', { method: 'PUT', headers: adminHeaders({ 'content-type': 'application/json' }), body: JSON.stringify({ format: 'openai', baseUrl: 'https://api.openai.com', models: [], enabled: true }) }), env, ctx)
     expect(badCh.status).toBe(400)
     const badRules = await call(new Request('https://cm.test/admin/mirror-rules', { method: 'PUT', headers: adminHeaders({ 'content-type': 'application/json' }), body: JSON.stringify([{ host: '169.254.169.254', mode: 'stream' }]) }), env, ctx)
     expect(badRules.status).toBe(400)

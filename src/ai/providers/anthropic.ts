@@ -281,7 +281,7 @@ export function anthropicEventToOpenAI(st: AnthropicStreamState, ev: SSEEvent): 
 }
 
 export const anthropicAdapter: ProviderAdapter = {
-  provider: 'anthropic',
+  format: 'anthropic',
 
   buildChatRequest(ch: Channel, key: string, req: OpenAIChatRequest, model: string) {
     return {

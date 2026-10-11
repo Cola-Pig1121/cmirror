@@ -5,21 +5,25 @@ import { enforceRateLimit } from '../middleware/ratelimit'
 import { noteMetric } from '../middleware/logger'
 import { ApiError, OpenAIError } from '../lib/errors'
 import { getAlias, listAliases, loadChannels } from './channels'
+import { FORMATS } from './formats'
 import { checkModelAllowed, executeChat, executeEmbeddings } from './router'
 import { trackAIUsage } from './usage'
 import { passthroughUpstream } from './passthrough'
 import type { OpenAIChatRequest } from './types'
 
-// 注意:错误格式由 root index.ts 的 onError 统一分流(OpenAIError → OpenAI 格式)
+// 错误格式由 root index.ts 的 onError 统一分流(OpenAIError → OpenAI 格式)
 export const aiModule = new Elysia({ name: 'ai' })
-  .all('/ai/:provider/*', async (c) => {
+  /** API 格式列表:前端渠道表单的下拉数据源 */
+  .get('/api/formats', () => Response.json(FORMATS))
+
+  .all('/ai/:seg/*', async (c) => {
     const env = getEnv(c.request)
     const ctx = getCtx(c.request)
     const token = await requireScope(c.request, env, 'ai')
     noteMetric(c.request, { tokenId: token.id, scope: 'ai' })
     await enforceRateLimit(env, ctx, c.request, token.id, { perToken: token.rpm })
-    const provider = c.params.provider as string
-    const result = await passthroughUpstream(c.request, provider, c.body)
+    const seg = c.params.seg as string
+    const result = await passthroughUpstream(c.request, seg, c.body)
     return result
   })
 
@@ -32,7 +36,7 @@ export const aiModule = new Elysia({ name: 'ai' })
     for (const ch of await loadChannels(env)) {
       if (!ch.enabled || !ch.keys.length) continue
       if (ch.models.includes('*')) continue
-      for (const m of ch.models) models.set(m, ch.provider)
+      for (const m of ch.models) models.set(m, ch.format)
     }
     for (const { name } of await listAliases(env)) models.set(name, 'alias')
     return Response.json({

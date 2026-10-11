@@ -16,13 +16,13 @@ export interface ModelAlias {
 export function defaultChannels(env: Env): Channel[] {
   const out: Channel[] = []
   if (env.OPENAI_API_KEY) {
-    out.push({ id: 'env-openai', provider: 'openai', baseUrl: 'https://api.openai.com', keys: [env.OPENAI_API_KEY], models: ['*'], weight: 10, enabled: true, note: 'env key' })
+    out.push({ id: 'env-openai', format: 'openai', baseUrl: 'https://api.openai.com', keys: [env.OPENAI_API_KEY], models: ['*'], weight: 10, enabled: true, note: 'env key' })
   }
   if (env.ANTHROPIC_API_KEY) {
-    out.push({ id: 'env-anthropic', provider: 'anthropic', baseUrl: 'https://api.anthropic.com', keys: [env.ANTHROPIC_API_KEY], models: ['*'], weight: 10, enabled: true, note: 'env key' })
+    out.push({ id: 'env-anthropic', format: 'anthropic', baseUrl: 'https://api.anthropic.com', keys: [env.ANTHROPIC_API_KEY], models: ['*'], weight: 10, enabled: true, note: 'env key' })
   }
   if (env.GEMINI_API_KEY) {
-    out.push({ id: 'env-gemini', provider: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com', keys: [env.GEMINI_API_KEY], models: ['*'], weight: 10, enabled: true, note: 'env key' })
+    out.push({ id: 'env-gemini', format: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com', keys: [env.GEMINI_API_KEY], models: ['*'], weight: 10, enabled: true, note: 'env key' })
   }
   return out
 }
@@ -48,7 +48,7 @@ export function validateChannel(c: unknown): string | null {
   const ch = c as Channel
   if (!ch || typeof ch !== 'object') return 'body must be a JSON object'
   if (typeof ch.id !== 'string' || !/^[A-Za-z0-9_.-]{1,64}$/.test(ch.id)) return 'invalid id'
-  if (typeof ch.provider !== 'string' || !ch.provider) return 'invalid provider'
+  if (typeof ch.format !== 'string' || !ch.format) return 'invalid format'
   if (typeof ch.baseUrl !== 'string' || !/^https?:\/\//i.test(ch.baseUrl)) return 'invalid baseUrl'
   if (!Array.isArray(ch.keys) || !ch.keys.length || ch.keys.some((k) => typeof k !== 'string' || !k)) return 'invalid keys'
   if (!Array.isArray(ch.models)) return 'invalid models'

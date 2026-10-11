@@ -8,7 +8,7 @@ import { noteMetric } from '../middleware/logger'
  * - 额度扣减写 KV(token:<hash>),走 waitUntil 不阻塞响应;提示词与回复内容不落盘。
  */
 export function noteAIUsage(request: Request, channel: Channel, model: string): void {
-  noteMetric(request, { model, channel: channel.id, provider: channel.provider })
+  noteMetric(request, { model, channel: channel.id, format: channel.format })
 }
 
 export async function debitTokenUsage(env: Env, tokenKey: string, record: TokenRecord, usage: Usage): Promise<void> {

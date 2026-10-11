@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { takeSSEEvents, sseThrough, SSE_DONE } from '../src/lib/stream'
 import { toAnthropicRequest, fromAnthropicResponse, createAnthropicStreamState, anthropicEventToOpenAI, anthropicAdapter } from '../src/ai/providers/anthropic'
 import { toGeminiRequest, fromGeminiResponse, geminiEventToOpenAI, createGeminiStreamState, geminiAdapter } from '../src/ai/providers/gemini'
+import { toResponsesRequest, fromResponsesResponse, responsesAdapter } from '../src/ai/providers/responses'
 import type { OpenAIChatRequest } from '../src/ai/types'
 import { sseStream } from './helpers'
 
-const CH = { id: 'c1', provider: 'anthropic', baseUrl: 'https://api.anthropic.com', keys: ['k'], models: ['m'], weight: 1, enabled: true }
+const CH = { id: 'c1', format: 'anthropic', baseUrl: 'https://api.anthropic.com', keys: ['k'], models: ['m'], weight: 1, enabled: true }
 
 function req(messages: unknown[], extra: Partial<OpenAIChatRequest> = {}): OpenAIChatRequest {
   return { model: 'claude-test', messages, ...extra }
@@ -234,13 +235,93 @@ describe('gemini transforms', () => {
 
   it('url building', () => {
     const call = geminiAdapter.buildChatRequest(
-      { id: 'g', provider: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com', keys: ['gk'], models: ['*'], weight: 1, enabled: true },
+      { id: 'g', format: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com', keys: ['gk'], models: ['*'], weight: 1, enabled: true },
       'gk',
       req([{ role: 'user', content: 'hi' }], { stream: true }),
       'gemini-2.0-flash',
     )
     expect(call.url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse')
     expect(call.headers['x-goog-api-key']).toBe('gk')
+  })
+})
+
+describe('responses adapter', () => {
+  it('chat request → responses input items', () => {
+    const body = toResponsesRequest(
+      req(
+        [
+          { role: 'system', content: 'instr' },
+          { role: 'user', content: 'hi' },
+          { role: 'assistant', content: '', tool_calls: [{ id: 'c1', function: { name: 'f', arguments: '{"a":1}' } }] },
+          { role: 'tool', tool_call_id: 'c1', content: 'ok' },
+        ],
+        { max_tokens: 64 },
+      ),
+      'gpt-5',
+    )
+    expect(body.instructions).toBe('instr')
+    const input = body.input as Record<string, unknown>[]
+    expect(input[0]).toMatchObject({ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] })
+    expect(input[1]).toMatchObject({ type: 'function_call', call_id: 'c1', name: 'f', arguments: '{"a":1}' })
+    expect(input[2]).toMatchObject({ type: 'function_call_output', call_id: 'c1', output: 'ok' })
+    expect(body.max_output_tokens).toBe(64)
+  })
+
+  it('responses output → chat completion', () => {
+    const out = fromResponsesResponse(
+      {
+        id: 'resp_1',
+        model: 'gpt-5',
+        status: 'completed',
+        output: [
+          { type: 'message', content: [{ type: 'output_text', text: 'Hello' }] },
+          { type: 'function_call', call_id: 'c9', name: 'f', arguments: '{"x":2}' },
+        ],
+        usage: { input_tokens: 3, output_tokens: 5 },
+      },
+      'gpt-5',
+    ) as Record<string, unknown>
+    const msg = (out.choices as { message: Record<string, unknown> }[])[0]!.message
+    expect(msg.content).toBe('Hello')
+    expect((msg.tool_calls as { id: string }[])[0]!.id).toBe('c9')
+    expect((out.choices as { finish_reason: string }[])[0]!.finish_reason).toBe('tool_calls')
+    expect(out.usage).toEqual({ prompt_tokens: 3, completion_tokens: 5, total_tokens: 8 })
+  })
+
+  it('stream SSE → openai chunks + [DONE]', async () => {
+    const sse = [
+      'event: response.created\ndata: {"type":"response.created","response":{"id":"resp_9","model":"gpt-5"}}\n\n',
+      'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"Hel"}\n\n',
+      'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"lo"}\n\n',
+      'event: response.output_item.added\ndata: {"type":"response.output_item.added","item":{"type":"function_call","call_id":"tc1","name":"f"}}\n\n',
+      'event: response.function_call_arguments.delta\ndata: {"type":"response.function_call_arguments.delta","arguments":"{\\"a\\":1}"}\n\n',
+      'event: response.output_item.done\ndata: {"type":"response.output_item.done","item":{"type":"function_call"}}\n\n',
+      'event: response.completed\ndata: {"type":"response.completed","response":{"usage":{"input_tokens":2,"output_tokens":4}}}\n\n',
+    ].join('')
+    const { response, usage } = responsesAdapter.streamChatResponse(
+      new Response(sseStream(sse), { headers: { 'content-type': 'text/event-stream' } }),
+      { model: 'x', messages: [], stream: true },
+      'gpt-5',
+    )
+    const text = await response.text()
+    expect(text).toContain('data: [DONE]')
+    const chunks = text.split('\n\n').filter((l) => l.startsWith('data:') && !l.includes('[DONE]')).map((l) => JSON.parse(l.slice(6)) as { choices?: { delta: Record<string, unknown>; finish_reason?: string }[] })
+    const content = chunks.map((c) => ((c.choices?.[0]?.delta ?? {}) as Record<string, unknown>).content ?? '').join('')
+    expect(content).toBe('Hello')
+    expect(chunks.some((c) => (c.choices?.[0]?.delta ?? {}).tool_calls)).toBe(true)
+    expect(chunks[chunks.length - 1]!.choices?.[0]!.finish_reason).toBe('tool_calls')
+    expect(await usage).toEqual({ input: 2, output: 4 })
+  })
+
+  it('url uses /v1/responses', () => {
+    const call = responsesAdapter.buildChatRequest(
+      { id: 'r', format: 'responses', baseUrl: 'https://api.openai.com', keys: ['k'], models: ['*'], weight: 1, enabled: true },
+      'k',
+      req([{ role: 'user', content: 'hi' }]),
+      'gpt-5',
+    )
+    expect(call.url).toBe('https://api.openai.com/v1/responses')
+    expect(call.headers.authorization).toBe('Bearer k')
   })
 })
 

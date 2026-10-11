@@ -6,7 +6,7 @@ export interface RequestMetric {
   scope?: string
   model?: string
   channel?: string
-  provider?: string
+  format?: string
   inputTokens?: number
   outputTokens?: number
   status?: number
@@ -40,7 +40,7 @@ export function logRequest(request: Request, status: number) {
         url.pathname.startsWith('/m/') ? 'mirror' : m.scope ?? 'other',
         String(status),
         m.model ?? '',
-        m.channel ?? m.provider ?? '',
+        m.channel ?? m.format ?? '',
       ],
       doubles: [ms, m.inputTokens ?? 0, m.outputTokens ?? 0],
       blobs: [url.pathname.slice(0, 48), request.method],

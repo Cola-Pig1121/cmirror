@@ -1,8 +1,8 @@
 /** 渠道配置(存 KV channel:<id>,见 docs/plan.md §9) */
 export interface Channel {
   id: string
-  /** 'anthropic' | 'gemini' | 其余一律按 OpenAI 兼容处理 */
-  provider: string
+  /** 上游 API 格式:'openai' | 'anthropic' | 'gemini' | 'responses'(见 formats.ts) */
+  format: string
   /** 根地址,如 https://api.openai.com;OpenAI 兼容系若含 /v1 会自动识别 */
   baseUrl: string
   keys: string[]
@@ -45,7 +45,7 @@ export interface UpstreamRequest {
  * 调用方必须用 ctx.waitUntil 承接以免丢额度且不阻塞响应。
  */
 export interface ProviderAdapter {
-  provider: string
+  format: string
   buildChatRequest(ch: Channel, key: string, req: OpenAIChatRequest, model: string): UpstreamRequest
   /** 上游成功响应 → OpenAI 格式 JSON 响应 + usage */
   nonStreamChatResponse(res: Response, model: string): Promise<{ response: Response; usage: Usage }>

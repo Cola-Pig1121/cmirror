@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia'
 import type { Env, TokenRecord, Scope } from '../env'
 import { getEnv } from '../runtime'
-import { requireAdmin, newTokenId, sha256hex } from '../middleware/auth'
+import { requireAdmin, resolveToken, isAdmin, newTokenId, sha256hex } from '../middleware/auth'
 import { ApiError } from '../lib/errors'
 import { loadRules, validateRules, DEFAULT_RULES } from '../mirror/rules'
 import { validateChannel, putChannel, removeChannel, listUserChannels, putAlias, getAlias, removeAlias, listAliases, type ModelAlias } from '../ai/channels'
@@ -10,6 +10,14 @@ const VALID_SCOPES: Scope[] = ['mirror', 'ai']
 
 /** /admin 基础管理:令牌、渠道、镜像规则、模型别名(仅管理员令牌) */
 export const adminModule = new Elysia({ name: 'admin' })
+  /** 当前令牌身份探测:前端据此隐藏/放行管理入口(无令牌也 200,便于匿名查询) */
+  .get('/api/whoami', async (c) => {
+    const env = getEnv(c.request)
+    const t = await resolveToken(env, c.request)
+    if (!t) return Response.json({ authed: false })
+    return Response.json({ authed: true, id: t.id, name: t.name, scopes: t.scopes, admin: isAdmin(t) })
+  })
+
   .post('/admin/tokens', async (c) => {
     const env = getEnv(c.request)
     await requireAdmin(c.request, env)

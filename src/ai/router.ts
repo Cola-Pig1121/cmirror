@@ -6,15 +6,17 @@ import { OpenAIError, openaiTypeFromStatus } from '../lib/errors'
 import { openaiAdapter } from './providers/openai'
 import { anthropicAdapter } from './providers/anthropic'
 import { geminiAdapter } from './providers/gemini'
+import { responsesAdapter } from './providers/responses'
 
 export const ADAPTERS: Record<string, ProviderAdapter> = {
   openai: openaiAdapter,
   anthropic: anthropicAdapter,
   gemini: geminiAdapter,
+  responses: responsesAdapter,
 }
 
 export function adapterFor(ch: Channel): ProviderAdapter {
-  return ADAPTERS[ch.provider] ?? openaiAdapter
+  return ADAPTERS[ch.format] ?? openaiAdapter
 }
 
 export function channelHasModel(ch: Channel, model: string): boolean {
@@ -138,8 +140,8 @@ interface EmbedResult {
 export async function executeEmbeddings(env: Env, body: Record<string, unknown>): Promise<EmbedResult> {
   const model = typeof body.model === 'string' ? body.model : ''
   const plans = await planChannels(env, model)
-  // embeddings:OpenAI 兼容直通 + Gemini 转换;Anthropic 无 embeddings 接口
-  const usable = plans.filter((p) => p.channel.provider !== 'anthropic')
+  // embeddings:OpenAI 兼容直通 + Gemini 转换;Anthropic / Responses 无 embeddings 接口
+  const usable = plans.filter((p) => p.channel.format !== 'anthropic' && p.channel.format !== 'responses')
   if (!usable.length) {
     throw new OpenAIError(404, 'invalid_request_error', 'model_not_found', `no enabled embedding-capable channel for model "${model}"`)
   }
@@ -152,7 +154,7 @@ export async function executeEmbeddings(env: Env, body: Record<string, unknown>)
       tried.add(key)
       try {
         let res: Response
-        if (plan.channel.provider === 'gemini') {
+        if (plan.channel.format === 'gemini') {
           const input = Array.isArray(body.input) ? (body.input as unknown[]) : [body.input]
           const call = {
             url: `${plan.channel.baseUrl.replace(/\/+$/, '').replace(/\/v1(beta)?$/i, '')}/v1beta/models/${encodeURIComponent(plan.model)}:embedContent`,

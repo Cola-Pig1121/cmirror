@@ -5,8 +5,8 @@ import { OpenAIError } from '../src/lib/errors'
 import { makeEnv, seedChannel, sseStream } from './helpers'
 import type { Channel } from '../src/ai/types'
 
-const A1: Channel = { id: 'a1', provider: 'anthropic', baseUrl: 'https://api.anthropic.com', keys: ['k1'], models: ['claude-test'], weight: 2, enabled: true }
-const A2: Channel = { id: 'a2', provider: 'anthropic', baseUrl: 'https://alt.anthropic.example', keys: ['k2'], models: ['claude-test'], weight: 1, enabled: true }
+const A1: Channel = { id: 'a1', format: 'anthropic', baseUrl: 'https://api.anthropic.com', keys: ['k1'], models: ['claude-test'], weight: 2, enabled: true }
+const A2: Channel = { id: 'a2', format: 'anthropic', baseUrl: 'https://alt.anthropic.example', keys: ['k2'], models: ['claude-test'], weight: 1, enabled: true }
 
 const anthropicJSON = {
   id: 'msg_1',
@@ -145,7 +145,7 @@ describe('executeChat', () => {
 
   it('stream passthrough for openai-compatible', async () => {
     const { env } = makeEnv()
-    const ch: Channel = { id: 'o1', provider: 'openai', baseUrl: 'https://api.openai.com', keys: ['sk'], models: ['gpt-x'], weight: 1, enabled: true }
+    const ch: Channel = { id: 'o1', format: 'openai', baseUrl: 'https://api.openai.com', keys: ['sk'], models: ['gpt-x'], weight: 1, enabled: true }
     await seedChannel(env.KV as never, ch)
     const sse = 'data: {"id":"1","object":"chat.completion.chunk","choices":[{"delta":{"content":"A"}}]}\n\ndata: {"choices":[{"delta":{}}],"usage":{"prompt_tokens":3,"completion_tokens":4}}\n\ndata: [DONE]\n\n'
     vi.stubGlobal('fetch', async () => new Response(sseStream(sse), { status: 200, headers: { 'content-type': 'text/event-stream' } }))

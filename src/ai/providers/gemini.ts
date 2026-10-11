@@ -255,7 +255,7 @@ export function geminiEventToOpenAI(st: GeminiStreamState, ev: SSEEvent): string
 }
 
 export const geminiAdapter: ProviderAdapter = {
-  provider: 'gemini',
+  format: 'gemini',
 
   buildChatRequest(ch: Channel, key: string, req: OpenAIChatRequest, model: string) {
     const verb = req.stream ? 'streamGenerateContent?alt=sse' : 'generateContent'

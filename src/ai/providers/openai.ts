@@ -16,7 +16,7 @@ export function openaiUrl(baseUrl: string, path: string): string {
  * 流式直通(零转换),仅在尾部嗅探 usage 用于计费,不缓冲整块。
  */
 export const openaiAdapter: ProviderAdapter = {
-  provider: 'openai',
+  format: 'openai',
 
   buildChatRequest(ch: Channel, key: string, req: OpenAIChatRequest, model: string) {
     return {

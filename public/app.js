@@ -310,17 +310,20 @@
   }
 
   // ---------- 设置页 ----------
-  function initSettings() {
+  async function initSettings() {
     tokenInput.value = getToken()
     $('tokenState').textContent = getToken()
       ? '已保存 ✓(Cookie 已写入,镜像跳转自动携带)'
       : '保存在本浏览器(localStorage + Cookie),镜像页面跳转自动携带。'
     engineSel.value = getEngine().id
+    await refreshWhoami()
+    $('adminLink').hidden = !whoami?.admin
   }
   function saveToken() {
     const v = tokenInput.value.trim()
     setToken(v)
     $('tokenState').textContent = v ? '已保存 ✓(Cookie 已写入,镜像跳转自动携带)' : '已清除'
+    refreshWhoami().then(() => { $('adminLink').hidden = !whoami?.admin })
   }
   tokenInput.addEventListener('change', saveToken)
   tokenInput.addEventListener('keydown', (e) => {
@@ -334,10 +337,26 @@
   // ---------- 管理后台 ----------
   const adminTabs = $('adminTabs')
   let curTab = 'tokens'
+  let whoami = null
 
-  function initAdmin() {
-    $('adminWho').textContent = getToken() ? '' : '⚠ 未设置令牌 — 先在 /settings 填入管理员令牌'
-    switchTab(curTab)
+  async function refreshWhoami() {
+    try {
+      const res = await api('/api/whoami')
+      whoami = res.ok ? await res.json() : null
+    } catch {
+      whoami = null
+    }
+    return whoami
+  }
+
+  async function initAdmin() {
+    await refreshWhoami()
+    const ok = !!whoami?.admin
+    $('adminTabs').hidden = !ok
+    for (const id of ['tokens', 'channels', 'aliases', 'rules']) $('tab-' + id).hidden = !ok || id !== curTab
+    $('adminDenied').hidden = ok
+    $('adminWho').textContent = ok ? '' : getToken() ? '' : '⚠ 未设置令牌 — 先在 /settings 填入管理员令牌'
+    if (ok) switchTab(curTab)
   }
   function switchTab(name) {
     curTab = name
@@ -370,12 +389,13 @@
       for (const it of items) {
         const r = it.record || {}
         const li = document.createElement('li')
+        const fmtK = (n) => (n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n))
         const meta =
           (r.scopes || []).join('/') +
           (r.models?.length ? ' · ' + r.models.join(',') : '') +
+          ' · 已用 ' + (r.usedRequests ?? 0) + (r.maxRequests ? '/' + r.maxRequests : '') + ' 次' +
+          (r.usedTokens ? ' · ' + fmtK(r.usedTokens) + ' tok' : '') +
           (r.rpm ? ' · ' + r.rpm + '/min' : '') +
-          ' · 已用 ' + (r.usedRequests ?? 0) + ' req / ' + (r.usedTokens ?? 0) + ' tok' +
-          (r.maxRequests ? '(上限 ' + r.maxRequests + ')' : '') +
           (r.expiresAt ? ' · ' + new Date(r.expiresAt).toLocaleDateString() + ' 过期' : '')
         li.append(el('span', 'name', r.name || it.key.slice(-8)), el('span', 'mode', meta))
         const del = el('button', 'del', '删除')
@@ -426,10 +446,10 @@
     const res = await api('/admin/channels')
     if (!res.ok) return denied(hint, res)
     const { user } = await res.json()
-    hint.textContent = '用户渠道 ' + user.length + ' 个;同渠道多 key 轮询 + 失败熔断,429/5xx 按权重降级到备用渠道'
+    hint.textContent = '共 ' + user.length + ' 个渠道;多 key 轮询 + 熔断,429/5xx 按权重降级'
     for (const c of user) {
       const li = document.createElement('li')
-      const meta = c.provider + ' · ' + c.baseUrl + ' · ' + (c.models || []).join(',') + ' · w' + (c.weight ?? 1) + ' · ' + (c.keys?.length || 0) + ' keys' + (c.enabled === false ? ' · 已停用' : '')
+      const meta = c.format + ' · ' + c.baseUrl + ' · ' + (c.models || []).join(',') + ' · w' + (c.weight ?? 1) + ' · ' + (c.keys?.length || 0) + ' keys' + (c.enabled === false ? ' · 停用' : '')
       li.append(el('span', 'name', c.id), el('span', 'mode', meta))
       const edit = el('button', '', '编辑')
       edit.onclick = () => fillChannelForm(c)
@@ -444,10 +464,12 @@
   }
   function fillChannelForm(c) {
     $('chId').value = c.id
-    $('chProvider').value = c.provider
+    const sel = $('chProvider')
+    if (![...sel.options].some((o) => o.value === c.format)) sel.add(new Option(c.format, c.format))
+    sel.value = c.format
     $('chBase').value = c.baseUrl
     $('chKeys').value = ''
-    $('chKeys').placeholder = '留空 = 保留原有 ' + (c.keys?.length || 0) + ' 个 key 不变'
+    $('chKeys').placeholder = '留空 = 保留原有 ' + (c.keys?.length || 0) + ' 个 key'
     $('chModels').value = (c.models || []).join(', ')
     $('chWeight').value = c.weight ?? 1
     $('chEnabled').checked = c.enabled !== false
@@ -457,7 +479,7 @@
     if (!id) { $('chHint').textContent = '渠道 id 必填'; return }
     const keys = $('chKeys').value.split('\n').map((s) => s.trim()).filter(Boolean)
     const body = {
-      provider: $('chProvider').value.trim(),
+      format: $('chProvider').value,
       baseUrl: $('chBase').value.trim(),
       keys,
       models: splitCsv($('chModels').value) || [],

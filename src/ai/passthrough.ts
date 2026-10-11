@@ -1,13 +1,15 @@
 import type { Env } from '../env'
 import { OpenAIError } from '../lib/errors'
-import { outboundBody } from '../lib/stream'
 import { getEnv } from '../runtime'
+import { outboundBody } from '../lib/stream'
 import { pickKey, reportKeyResult } from './keys'
 import { loadChannels } from './channels'
+import { formatMeta } from './formats'
+import type { Channel } from './types'
 
 /**
  * 模式 A:透明代理(只换域名/换 key,正文零解析)。
- * /ai/<provider>/<上游路径> → 渠道 baseUrl + 上游路径。
+ * /ai/<seg>/<上游路径> —— seg 优先按渠道 id 精确匹配,其次按 API 格式(openai/anthropic/gemini/responses)。
  */
 const DROP_HEADERS = new Set([
   'authorization',
@@ -21,15 +23,23 @@ const DROP_HEADERS = new Set([
   'content-length',
 ])
 
-export function applyUpstreamAuth(provider: string, headers: Headers, key: string): void {
-  if (provider === 'anthropic') {
+export function applyUpstreamAuth(format: string, headers: Headers, key: string): void {
+  const meta = formatMeta(format)
+  if (meta?.auth === 'x-api-key') {
     headers.set('x-api-key', key)
     if (!headers.has('anthropic-version')) headers.set('anthropic-version', '2023-06-01')
-  } else if (provider === 'gemini') {
+  } else if (meta?.auth === 'x-goog-api-key') {
     headers.set('x-goog-api-key', key)
   } else {
     headers.set('authorization', `Bearer ${key}`)
   }
+}
+
+export function resolvePassthroughChannel(channels: Channel[], seg: string): Channel | undefined {
+  const enabled = channels.filter((c) => c.enabled && c.keys.length > 0)
+  const byId = enabled.find((c) => c.id === seg)
+  if (byId) return byId
+  return enabled.filter((c) => c.format === seg).sort((a, b) => (b.weight ?? 1) - (a.weight ?? 1))[0]
 }
 
 export function buildPassthroughUrl(baseUrl: string, rest: string, search: string): string {
@@ -40,18 +50,17 @@ export function buildPassthroughUrl(baseUrl: string, rest: string, search: strin
   return base + '/' + path + (search || '')
 }
 
-export async function passthroughUpstream(request: Request, provider: string, parsedBody?: unknown): Promise<Response> {
+export async function passthroughUpstream(request: Request, seg: string, parsedBody?: unknown): Promise<Response> {
   const env = getEnv(request)
-  const channels = (await loadChannels(env)).filter((c) => c.enabled && c.provider === provider && c.keys.length > 0)
-  if (!channels.length) {
-    throw new OpenAIError(404, 'invalid_request_error', 'provider_not_found', `no enabled channel for provider "${provider}"`)
+  const channel = resolvePassthroughChannel(await loadChannels(env), seg)
+  if (!channel) {
+    throw new OpenAIError(404, 'invalid_request_error', 'provider_not_found', `no channel matches id or format "${seg}"`)
   }
-  const channel = channels.sort((a, b) => (b.weight ?? 1) - (a.weight ?? 1))[0]!
   const key = pickKey(channel)
-  if (!key) throw new OpenAIError(503, 'api_error', 'keys_exhausted', `all keys for provider "${provider}" are cooling down`)
+  if (!key) throw new OpenAIError(503, 'api_error', 'keys_exhausted', `all keys for channel "${channel.id}" are cooling down`)
 
   const url = request.url
-  const marker = '/ai/' + provider + '/'
+  const marker = '/ai/' + seg + '/'
   const at = url.indexOf(marker)
   const restPath = at === -1 ? '' : url.slice(at + marker.length)
   const qIdx = restPath.indexOf('?')
@@ -64,7 +73,7 @@ export async function passthroughUpstream(request: Request, provider: string, pa
     if (DROP_HEADERS.has(lk) || lk.startsWith('cf-') || lk.startsWith('x-forwarded-')) continue
     headers.set(k, v)
   }
-  applyUpstreamAuth(provider, headers, key)
+  applyUpstreamAuth(channel.format, headers, key)
 
   const res = await fetch(buildPassthroughUrl(channel.baseUrl, path, search), {
     method: request.method,
