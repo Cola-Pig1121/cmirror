@@ -31,17 +31,77 @@
       <select id="engineSel"></select>
     </section>
     <section>
-      <label>自定义代理(长期规则,需管理员令牌)</label>
-      <div class="row">
-        <input id="customHost" type="text" placeholder="如 www.pixiv.net" />
-        <select id="customMode"><option value="rewrite">rewrite</option><option value="stream">stream</option></select>
-        <button id="customAdd" type="button">添加</button>
-      </div>
-      <ul id="customList" class="custom-list"></ul>
-      <p class="hint" id="customHint"></p>
+      <a href="/admin" class="back">进入管理后台(令牌 / 渠道 / 别名 / 镜像规则)→</a>
     </section>
     <section>
       <a href="/" class="back">← 返回搜索</a>
+    </section>
+  </main>
+
+  <main id="admin" class="admin" hidden>
+    <div class="admin-head">
+      <a href="/" class="back">← 返回</a>
+      <h1>管理后台</h1>
+      <span id="adminWho" class="who"></span>
+    </div>
+    <div class="tabs" id="adminTabs">
+      <button data-tab="tokens" class="on">令牌</button>
+      <button data-tab="channels">AI 渠道</button>
+      <button data-tab="aliases">模型别名</button>
+      <button data-tab="rules">镜像规则</button>
+    </div>
+
+    <section id="tab-tokens" class="tab">
+      <div class="form-grid">
+        <input id="tkName" placeholder="名称" />
+        <label class="chk"><input type="checkbox" id="tkMirror" checked /> mirror</label>
+        <label class="chk"><input type="checkbox" id="tkAi" checked /> ai</label>
+        <input id="tkModels" placeholder="模型白名单,逗号分隔(空 = 不限)" />
+        <input id="tkRpm" type="number" min="1" placeholder="每分钟请求数" />
+        <input id="tkMaxReq" type="number" min="1" placeholder="总请求额度" />
+        <input id="tkMaxTok" type="number" min="1" placeholder="总 token 额度" />
+        <input id="tkDays" type="number" min="1" placeholder="有效天数(空 = 永久)" />
+        <button id="tkCreate" class="go">签发令牌</button>
+      </div>
+      <div id="tkNew" class="newtoken" hidden></div>
+      <ul id="tkList" class="items"></ul>
+      <p class="hint" id="tkHint"></p>
+    </section>
+
+    <section id="tab-channels" class="tab" hidden>
+      <div class="form-grid">
+        <input id="chId" placeholder="渠道 id(如 deepseek-1)" />
+        <input id="chProvider" placeholder="provider(openai/anthropic/gemini/deepseek/…)" />
+        <input id="chBase" placeholder="baseUrl,如 https://api.deepseek.com" />
+        <textarea id="chKeys" rows="3" placeholder="上游 API key,每行一个(仅存服务端,不回显)"></textarea>
+        <input id="chModels" placeholder="模型,逗号分隔(* = 全部)" />
+        <input id="chWeight" type="number" min="1" value="1" placeholder="权重" />
+        <label class="chk"><input type="checkbox" id="chEnabled" checked /> 启用</label>
+        <button id="chSave" class="go">保存渠道</button>
+      </div>
+      <ul id="chList" class="items"></ul>
+      <p class="hint" id="chHint"></p>
+    </section>
+
+    <section id="tab-aliases" class="tab" hidden>
+      <div class="form-grid">
+        <input id="alName" placeholder="别名(客户端里写的模型名)" />
+        <input id="alModel" placeholder="真实模型,如 deepseek-chat" />
+        <input id="alChannel" placeholder="可选:固定渠道 id" />
+        <button id="alSave" class="go">保存别名</button>
+      </div>
+      <ul id="alList" class="items"></ul>
+      <p class="hint" id="alHint"></p>
+    </section>
+
+    <section id="tab-rules" class="tab" hidden>
+      <div class="form-grid">
+        <input id="customHost" placeholder="站点 host,如 www.pixiv.net" />
+        <select id="customMode"><option value="rewrite">rewrite(改写浏览)</option><option value="stream">stream(原样透传)</option></select>
+        <button id="customAdd" class="go">添加规则</button>
+      </div>
+      <ul id="customList" class="items"></ul>
+      <p class="hint" id="customHint"></p>
     </section>
   </main>
 

@@ -1,4 +1,4 @@
-/* cmirror 前端:Listary 风单框 —— 引擎跳转 / URL 识别临时代理 / "/" 命令补全 */
+/* cmirror 前端:Listary 风单框 + 设置页 + 管理后台(令牌/渠道/别名/镜像规则) */
 (() => {
   'use strict'
 
@@ -57,7 +57,8 @@
         openNew(mirrorHref(v))
       },
     },
-    { cmd: '/settings', desc: '打开设置(令牌 / 引擎 / 自定义代理)', run: () => (location.hash = '#settings') },
+    { cmd: '/settings', desc: '打开设置(令牌 / 引擎)', run: () => (location.hash = '#settings') },
+    { cmd: '/admin', desc: '管理后台(令牌 / 渠道 / 别名 / 规则)', run: () => (location.hash = '#admin') },
     {
       cmd: '/engine',
       args: '<' + ENGINES.map((e) => e.id).join('|') + '>',
@@ -72,6 +73,20 @@
 
   // ---------- DOM ----------
   const $ = (id) => document.getElementById(id)
+  const el = (tag, cls, text) => {
+    const n = document.createElement(tag)
+    if (cls) n.className = cls
+    n.textContent = text ?? ''
+    return n
+  }
+  const splitCsv = (s) => {
+    const a = s.split(',').map((x) => x.trim()).filter(Boolean)
+    return a.length ? a : undefined
+  }
+  const num = (s) => {
+    const n = parseInt(s, 10)
+    return Number.isFinite(n) && n > 0 ? n : undefined
+  }
   const input = $('q')
   const list = $('list')
   const engineBtn = $('engine')
@@ -163,10 +178,7 @@
       }
     }
     if (!getToken()) {
-      const note = document.createElement('span')
-      note.className = 'note'
-      note.textContent = '提示:在 /settings 配置令牌后可直接访问镜像'
-      ghbar.appendChild(note)
+      ghbar.appendChild(el('span', 'note', '提示:在 /settings 配置令牌后可直接访问镜像'))
     }
   }
 
@@ -263,92 +275,47 @@
     [...list.children].forEach((li, i) => li.classList.toggle('sel', i === sel))
   }
 
-  // ---------- 设置页 ----------
+  // ---------- 视图路由:home / settings / admin(hash 与 path 双入口) ----------
   const home = $('home')
   const settings = $('settings')
+  const admin = $('admin')
   const tokenInput = $('token')
   const engineSel = $('engineSel')
-  const customList = $('customList')
-  const customHint = $('customHint')
 
   for (const e of ENGINES) {
-    const o = document.createElement('option')
-    o.value = e.id
-    o.textContent = e.name
-    engineSel.appendChild(o)
+    engineSel.appendChild(new Option(e.name, e.id))
   }
 
   async function api(path, opts = {}) {
     const t = getToken()
-    const res = await fetch(path, {
+    return fetch(path, {
       ...opts,
       headers: { 'content-type': 'application/json', ...(t ? { authorization: 'Bearer ' + t } : {}), ...(opts.headers || {}) },
     })
-    return res
   }
 
-  let rules = []
-  async function loadRules() {
-    try {
-      const res = await api('/admin/mirror-rules')
-      if (res.ok) {
-        rules = await res.json()
-        customHint.textContent = '共 ' + rules.length + ' 条(含内置默认)。修改需管理员令牌。'
-      } else {
-        customHint.textContent = '无法读取规则(HTTP ' + res.status + '),请检查令牌是否为管理员。'
-      }
-    } catch {
-      customHint.textContent = '读取规则失败。'
-    }
-    renderRules()
+  const currentView = () => {
+    if (location.pathname === '/admin' || location.hash === '#admin') return 'admin'
+    if (location.pathname === '/settings' || location.hash === '#settings') return 'settings'
+    return 'home'
   }
-  function renderRules() {
-    customList.innerHTML = ''
-    for (const r of rules) {
-      const li = document.createElement('li')
-      const hostSpan = document.createElement('span')
-      hostSpan.textContent = r.host
-      const mode = document.createElement('span')
-      mode.className = 'mode'
-      mode.textContent = r.mode
-      const del = document.createElement('button')
-      del.textContent = '移除'
-      del.addEventListener('click', async () => {
-        rules = rules.filter((x) => x !== r)
-        await saveRules()
-      })
-      li.append(hostSpan, mode, del)
-      customList.appendChild(li)
-    }
-  }
-  async function saveRules() {
-    renderRules()
-    const res = await api('/admin/mirror-rules', { method: 'PUT', body: JSON.stringify(rules) })
-    if (!res.ok) customHint.textContent = '保存失败(HTTP ' + res.status + '),需要管理员令牌。'
-    else customHint.textContent = '已保存 ' + rules.length + ' 条。'
-  }
-  $('customAdd').addEventListener('click', () => {
-    const host = $('customHost').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
-    if (!host) return
-    if (rules.some((r) => r.host === host)) { customHint.textContent = host + ' 已存在'; return }
-    rules = [...rules, { host, mode: $('customMode').value }]
-    $('customHost').value = ''
-    saveRules()
-  })
 
-  // /settings 既支持 hash 路由(#settings),也支持直接访问路径 /settings(SPA 回退到 index.html)
-  const settingsActive = () => location.hash === '#settings' || location.pathname === '/settings'
-  function showSettings(on) {
-    settings.hidden = !on
-    home.hidden = on
-    if (on) {
-      tokenInput.value = getToken()
-      $('tokenState').textContent = getToken() ? '已保存 ✓(Cookie 已写入,镜像跳转自动携带)' : '保存在本浏览器(localStorage + Cookie),镜像页面跳转自动携带。'
-      engineSel.value = getEngine().id
-      loadRules()
-    } else {
-      input.focus()
-    }
+  function showView(v) {
+    home.hidden = v !== 'home'
+    settings.hidden = v !== 'settings'
+    admin.hidden = v !== 'admin'
+    if (v === 'settings') initSettings()
+    if (v === 'admin') initAdmin()
+    if (v === 'home') input.focus()
+  }
+
+  // ---------- 设置页 ----------
+  function initSettings() {
+    tokenInput.value = getToken()
+    $('tokenState').textContent = getToken()
+      ? '已保存 ✓(Cookie 已写入,镜像跳转自动携带)'
+      : '保存在本浏览器(localStorage + Cookie),镜像页面跳转自动携带。'
+    engineSel.value = getEngine().id
   }
   function saveToken() {
     const v = tokenInput.value.trim()
@@ -363,10 +330,245 @@
     }
   })
   engineSel.addEventListener('change', () => { setEngine(engineSel.value); syncEngine() })
-  window.addEventListener('hashchange', () => showSettings(settingsActive()))
+
+  // ---------- 管理后台 ----------
+  const adminTabs = $('adminTabs')
+  let curTab = 'tokens'
+
+  function initAdmin() {
+    $('adminWho').textContent = getToken() ? '' : '⚠ 未设置令牌 — 先在 /settings 填入管理员令牌'
+    switchTab(curTab)
+  }
+  function switchTab(name) {
+    curTab = name
+    for (const b of adminTabs.querySelectorAll('button')) b.classList.toggle('on', b.dataset.tab === name)
+    for (const id of ['tokens', 'channels', 'aliases', 'rules']) $('tab-' + id).hidden = id !== name
+    if (name === 'tokens') loadTokens()
+    if (name === 'channels') loadChannels()
+    if (name === 'aliases') loadAliases()
+    if (name === 'rules') loadRules()
+  }
+  adminTabs.addEventListener('click', (e) => {
+    const t = e.target?.dataset?.tab
+    if (t) switchTab(t)
+  })
+
+  function denied(hint, res) {
+    hint.textContent = res.status === 401 || res.status === 403 ? '需要管理员令牌(当前令牌无管理权限)' : '请求失败(HTTP ' + res.status + ')'
+  }
+
+  // —— 令牌 ——
+  async function loadTokens() {
+    const hint = $('tkHint')
+    const ul = $('tkList')
+    ul.innerHTML = ''
+    try {
+      const res = await api('/admin/tokens')
+      if (!res.ok) return denied(hint, res)
+      const items = await res.json()
+      hint.textContent = '用户令牌 ' + items.length + ' 个(管理员令牌来自服务端 secret,不在此列)'
+      for (const it of items) {
+        const r = it.record || {}
+        const li = document.createElement('li')
+        const meta =
+          (r.scopes || []).join('/') +
+          (r.models?.length ? ' · ' + r.models.join(',') : '') +
+          (r.rpm ? ' · ' + r.rpm + '/min' : '') +
+          ' · 已用 ' + (r.usedRequests ?? 0) + ' req / ' + (r.usedTokens ?? 0) + ' tok' +
+          (r.maxRequests ? '(上限 ' + r.maxRequests + ')' : '') +
+          (r.expiresAt ? ' · ' + new Date(r.expiresAt).toLocaleDateString() + ' 过期' : '')
+        li.append(el('span', 'name', r.name || it.key.slice(-8)), el('span', 'mode', meta))
+        const del = el('button', 'del', '删除')
+        del.onclick = async () => {
+          await api('/admin/tokens/' + it.key.replace('token:', ''), { method: 'DELETE' })
+          loadTokens()
+        }
+        li.appendChild(del)
+        ul.appendChild(li)
+      }
+    } catch {
+      hint.textContent = '网络错误'
+    }
+  }
+
+  $('tkCreate').onclick = async () => {
+    const scopes = [$('tkMirror').checked && 'mirror', $('tkAi').checked && 'ai'].filter(Boolean)
+    const body = {
+      name: $('tkName').value.trim() || 'unnamed',
+      scopes,
+      models: splitCsv($('tkModels').value),
+      rpm: num($('tkRpm').value),
+      maxRequests: num($('tkMaxReq').value),
+      maxTokens: num($('tkMaxTok').value),
+      expiresDays: num($('tkDays').value),
+    }
+    const box = $('tkNew')
+    const res = await api('/admin/tokens', { method: 'POST', body: JSON.stringify(body) })
+    box.hidden = false
+    box.innerHTML = ''
+    if (!res.ok) {
+      box.textContent = '签发失败(HTTP ' + res.status + '),需要管理员令牌'
+      return
+    }
+    const { token } = await res.json()
+    box.append(el('span', '', '新令牌(仅显示这一次,请立即保存):'))
+    box.append(el('code', 'tokval', token))
+    const cp = el('button', 'go', '复制')
+    cp.onclick = () => navigator.clipboard?.writeText(token).then(() => (cp.textContent = '已复制 ✓'))
+    box.appendChild(cp)
+  }
+
+  // —— AI 渠道 ——
+  async function loadChannels() {
+    const hint = $('chHint')
+    const ul = $('chList')
+    ul.innerHTML = ''
+    const res = await api('/admin/channels')
+    if (!res.ok) return denied(hint, res)
+    const { user } = await res.json()
+    hint.textContent = '用户渠道 ' + user.length + ' 个;同渠道多 key 轮询 + 失败熔断,429/5xx 按权重降级到备用渠道'
+    for (const c of user) {
+      const li = document.createElement('li')
+      const meta = c.provider + ' · ' + c.baseUrl + ' · ' + (c.models || []).join(',') + ' · w' + (c.weight ?? 1) + ' · ' + (c.keys?.length || 0) + ' keys' + (c.enabled === false ? ' · 已停用' : '')
+      li.append(el('span', 'name', c.id), el('span', 'mode', meta))
+      const edit = el('button', '', '编辑')
+      edit.onclick = () => fillChannelForm(c)
+      const del = el('button', 'del', '删除')
+      del.onclick = async () => {
+        await api('/admin/channels/' + encodeURIComponent(c.id), { method: 'DELETE' })
+        loadChannels()
+      }
+      li.append(edit, del)
+      ul.appendChild(li)
+    }
+  }
+  function fillChannelForm(c) {
+    $('chId').value = c.id
+    $('chProvider').value = c.provider
+    $('chBase').value = c.baseUrl
+    $('chKeys').value = ''
+    $('chKeys').placeholder = '留空 = 保留原有 ' + (c.keys?.length || 0) + ' 个 key 不变'
+    $('chModels').value = (c.models || []).join(', ')
+    $('chWeight').value = c.weight ?? 1
+    $('chEnabled').checked = c.enabled !== false
+  }
+  $('chSave').onclick = async () => {
+    const id = $('chId').value.trim()
+    if (!id) { $('chHint').textContent = '渠道 id 必填'; return }
+    const keys = $('chKeys').value.split('\n').map((s) => s.trim()).filter(Boolean)
+    const body = {
+      provider: $('chProvider').value.trim(),
+      baseUrl: $('chBase').value.trim(),
+      keys,
+      models: splitCsv($('chModels').value) || [],
+      weight: num($('chWeight').value) ?? 1,
+      enabled: $('chEnabled').checked,
+    }
+    if (!keys.length) {
+      // 编辑时留空表示保留原 key,从当前列表合并
+      const cur = await api('/admin/channels')
+      if (cur.ok) {
+        const { user } = await cur.json()
+        const old = user.find((x) => x.id === id)
+        if (old?.keys?.length) body.keys = old.keys
+      }
+    }
+    const res = await api('/admin/channels/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify(body) })
+    if (res.ok) {
+      $('chHint').textContent = '已保存渠道 ' + id
+      $('chId').value = ''; $('chProvider').value = ''; $('chBase').value = ''; $('chKeys').value = ''; $('chModels').value = ''
+      loadChannels()
+    } else {
+      const j = await res.json().catch(() => null)
+      $('chHint').textContent = '保存失败:' + (j?.error?.message || 'HTTP ' + res.status)
+    }
+  }
+
+  // —— 模型别名 ——
+  async function loadAliases() {
+    const hint = $('alHint')
+    const ul = $('alList')
+    ul.innerHTML = ''
+    const res = await api('/admin/aliases')
+    if (!res.ok) return denied(hint, res)
+    const items = await res.json()
+    hint.textContent = '别名让客户端写固定模型名,后端随时切换实际模型/渠道'
+    for (const { name, alias } of items) {
+      const li = document.createElement('li')
+      li.append(el('span', 'name', name), el('span', 'mode', '→ ' + alias.model + (alias.channel ? '(渠道 ' + alias.channel + ')' : '')))
+      const del = el('button', 'del', '删除')
+      del.onclick = async () => {
+        await api('/admin/aliases/' + encodeURIComponent(name), { method: 'DELETE' })
+        loadAliases()
+      }
+      li.appendChild(del)
+      ul.appendChild(li)
+    }
+  }
+  $('alSave').onclick = async () => {
+    const name = $('alName').value.trim()
+    const model = $('alModel').value.trim()
+    if (!name || !model) { $('alHint').textContent = '别名和目标模型必填'; return }
+    const body = { model, channel: $('alChannel').value.trim() || undefined }
+    const res = await api('/admin/aliases/' + encodeURIComponent(name), { method: 'PUT', body: JSON.stringify(body) })
+    if (res.ok) {
+      $('alHint').textContent = '已保存别名 ' + name
+      $('alName').value = ''; $('alModel').value = ''; $('alChannel').value = ''
+      loadAliases()
+    } else denied($('alHint'), res)
+  }
+
+  // —— 镜像规则(自定义长期配置) ——
+  let rules = []
+  async function loadRules() {
+    const hint = $('customHint')
+    try {
+      const res = await api('/admin/mirror-rules')
+      if (res.ok) {
+        rules = await res.json()
+        hint.textContent = '共 ' + rules.length + ' 条。未登记的站点也可临时代理,规则用于固定模式/防盗链 referer'
+      } else {
+        rules = []
+        denied(hint, res)
+      }
+    } catch {
+      hint.textContent = '读取规则失败'
+      rules = []
+    }
+    renderRules()
+  }
+  function renderRules() {
+    const ul = $('customList')
+    ul.innerHTML = ''
+    for (const r of rules) {
+      const li = document.createElement('li')
+      li.append(el('span', 'name', r.host), el('span', 'mode', r.mode + (r.referer ? ' · referer 已配置' : '')))
+      const del = el('button', 'del', '移除')
+      del.onclick = async () => {
+        rules = rules.filter((x) => x !== r)
+        await saveRules()
+      }
+      li.appendChild(del)
+      ul.appendChild(li)
+    }
+  }
+  async function saveRules() {
+    renderRules()
+    const res = await api('/admin/mirror-rules', { method: 'PUT', body: JSON.stringify(rules) })
+    $('customHint').textContent = res.ok ? '已保存 ' + rules.length + ' 条' : '保存失败,需要管理员令牌'
+  }
+  $('customAdd').onclick = () => {
+    const host = $('customHost').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '')
+    if (!host) return
+    if (rules.some((r) => r.host === host)) { $('customHint').textContent = host + ' 已存在'; return }
+    rules = [...rules, { host, mode: $('customMode').value }]
+    $('customHost').value = ''
+    saveRules()
+  }
+
+  window.addEventListener('hashchange', () => showView(currentView()))
 
   // ---------- 启动 ----------
   syncEngine()
-  showSettings(settingsActive())
-  if (!settingsActive()) input.focus()
+  showView(currentView())
 })()

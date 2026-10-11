@@ -168,3 +168,102 @@ body {
 }
 .back { color: #57606a; font-size: 14px; text-decoration: none; }
 .back:hover { text-decoration: underline; }
+
+/* ---------- 管理后台 ---------- */
+.admin { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
+.admin-head { display: flex; align-items: center; gap: 14px; }
+.admin-head h1 { font-size: 20px; font-weight: 650; margin: 0; }
+.admin-head .who { margin-left: auto; font-size: 13px; color: #cf222e; }
+
+.tabs { display: flex; gap: 6px; margin: 20px 0 18px; border-bottom: 1px solid #e3e6ea; }
+.tabs button {
+  border: 0;
+  background: none;
+  padding: 9px 14px;
+  font-size: 14px;
+  color: #57606a;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.tabs button:hover { color: #1f2328; }
+.tabs button.on { color: #1f2328; font-weight: 600; border-bottom-color: #24292f; }
+
+.tab { margin-bottom: 40px; }
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #eef0f2;
+  border-radius: 12px;
+  background: #fbfcfd;
+  margin-bottom: 14px;
+}
+.form-grid input, .form-grid textarea, .form-grid select {
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #e3e6ea;
+  border-radius: 9px;
+  font-size: 14px;
+  background: #fff;
+  color: inherit;
+  font-family: inherit;
+}
+.form-grid textarea { grid-column: 1 / -1; padding: 8px 12px; height: auto; resize: vertical; }
+.form-grid .chk { display: flex; align-items: center; gap: 5px; font-size: 13.5px; color: #57606a; }
+.form-grid button.go {
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 9px;
+  background: #24292f;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+}
+.form-grid button.go:hover { background: #3a4149; }
+
+.newtoken {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border: 1px solid #d1d9e0;
+  border-left: 3px solid #f0883e;
+  border-radius: 10px;
+  background: #fff8f2;
+  font-size: 14px;
+}
+.newtoken .tokval { font-family: ui-monospace, Consolas, monospace; font-size: 13px; word-break: break-all; background: #fff; padding: 4px 8px; border-radius: 6px; border: 1px solid #e3e6ea; }
+.newtoken button { height: 30px; padding: 0 12px; border: 1px solid #d1d9e0; border-radius: 8px; background: #fff; cursor: pointer; font-size: 13px; }
+
+.items { list-style: none; padding: 0; margin: 0; }
+.items li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #eef0f2;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.items li .name { font-weight: 600; white-space: nowrap; }
+.items li .mode { color: #57606a; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
+.items li button {
+  margin-left: auto;
+  flex: none;
+  border: 1px solid #e3e6ea;
+  background: #fff;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+  color: #57606a;
+}
+.items li button:hover { background: #f6f8fa; }
+.items li button.del { color: #cf222e; border-color: #f0d0d4; }
+.items li button.del:hover { background: #fff5f5; }
