@@ -28,7 +28,7 @@
 
 ### 🔐 公共层
 
-令牌(Bearer / X-Token / Cookie / Basic 四种携带方式,git 客户端原生兼容)、按令牌+IP 双维度限流、统一错误格式(AI 路径 OpenAI 兼容)、Analytics Engine 元数据统计(不落盘任何请求体/提示词)。
+令牌(Bearer / X-Token / Cookie / Basic 四种携带方式,git 客户端原生兼容)、按令牌+IP 双维度限流、统一错误格式(AI 路径 OpenAI 兼容)、Analytics Engine 元数据统计(不落盘任何请求体/提示词)。管理员可在网页后台签发限权令牌并生成**分享链接**(`/#setup=<token>`,对方打开自动完成配置)。
 
 ## 快速部署
 

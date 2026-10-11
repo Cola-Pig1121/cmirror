@@ -433,9 +433,14 @@
     const { token } = await res.json()
     box.append(el('span', '', '新令牌(仅显示这一次,请立即保存):'))
     box.append(el('code', 'tokval', token))
-    const cp = el('button', 'go', '复制')
+    const cp = el('button', 'go', '复制令牌')
     cp.onclick = () => navigator.clipboard?.writeText(token).then(() => (cp.textContent = '已复制 ✓'))
     box.appendChild(cp)
+    // 分发:接收方打开链接自动保存令牌并回首页(# 片段不发往服务端,不落日志)
+    const share = location.origin + '/#setup=' + encodeURIComponent(token)
+    const cp2 = el('button', 'go', '复制分享链接(发给对方,打开即自动配置)')
+    cp2.onclick = () => navigator.clipboard?.writeText(share).then(() => (cp2.textContent = '已复制 ✓'))
+    box.appendChild(cp2)
   }
 
   // —— AI 渠道 ——
@@ -591,6 +596,12 @@
   window.addEventListener('hashchange', () => showView(currentView()))
 
   // ---------- 启动 ----------
+  // 接收分享链接 #setup=<token>:自动保存令牌(写 localStorage + Cookie)后清理地址
+  const setup = location.hash.match(/^#setup=(.+)$/s)
+  if (setup) {
+    setToken(decodeURIComponent(setup[1]))
+    history.replaceState(null, '', location.pathname)
+  }
   syncEngine()
   showView(currentView())
 })()
